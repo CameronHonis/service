@@ -20,8 +20,8 @@ type ServiceI interface {
 type Service struct {
 }
 
-func Reset(s interface{}) {
-	sVal := reflect.ValueOf(s)
+func Reset(s ServiceI) {
+	sVal := reflect.ValueOf(s).Elem()
 	sType := sVal.Type()
 	fieldCount := sVal.NumField()
 	for i := 0; i < fieldCount; i++ {
@@ -45,7 +45,20 @@ func NewAdderService() *AdderService {
 		FieldB: false,
 	}
 }
+func (as *AdderService) Reset() {
+	as.fieldA = 0
+	as.FieldB = false
+}
+func (as *AdderService) Dispatch(action Action) {
+
+}
+func (as *AdderService) AddListener(actionVariant string, listener func(payload interface{})) {
+
+}
+func (as *AdderService) RemoveListener(actionVariant string) error {
+	return nil
+}
 func main() {
 	adderService := NewAdderService()
-	Reset(*adderService)
+	Reset(adderService)
 }
