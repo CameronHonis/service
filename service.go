@@ -43,6 +43,7 @@ type Event struct {
 type EventHandler func(event *Event) (willPropagate bool)
 
 type ServiceI interface {
+	Flush()
 	Dispatch(event *Event)
 	AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int)
 	RemoveEventListener(eventId int)
@@ -66,6 +67,10 @@ func NewService(parent ServiceI) *Service {
 		eventHandlerIdxByEventId: make(map[int]int),
 		eventHandlersByVariant:   make(map[EventVariant][]EventHandler),
 	}
+}
+
+func (s *Service) Flush() {
+	panic("did you forget to implement `Flush`?")
 }
 
 func (s *Service) Dispatch(event *Event) {
@@ -114,8 +119,4 @@ func (s *Service) propagateEvent(event *Event) {
 	if parentService, ok := s.parent.(*Service); ok {
 		parentService.Dispatch(event)
 	}
-}
-
-func main() {
-
 }
