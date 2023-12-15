@@ -40,7 +40,7 @@ type Event struct {
 	Variant EventVariant
 	Payload interface{}
 }
-type EventHandler func(interface{})
+type EventHandler func(event *Event) (willPropagate bool)
 
 type ServiceI interface {
 	Dispatch(event *Event)
@@ -51,35 +51,67 @@ type ServiceI interface {
 }
 
 type Service struct {
-	parent                ServiceI
-	eventHandlersById     map[int]EventHandler
-	eventHandlerByVariant map[EventVariant]EventHandler
+	parent                   ServiceI
+	eventHandlersCount       int
+	variantByEventId         map[int]EventVariant
+	eventHandlerIdxByEventId map[int]int
+	eventHandlersByVariant   map[EventVariant][]EventHandler
 }
 
 func NewService(parent ServiceI) *Service {
 	return &Service{
-		parent,
-		make(map[int]EventHandler),
-		make(map[EventVariant]EventHandler),
+		parent:                   parent,
+		eventHandlersCount:       0,
+		variantByEventId:         make(map[int]EventVariant),
+		eventHandlerIdxByEventId: make(map[int]int),
+		eventHandlersByVariant:   make(map[EventVariant][]EventHandler),
 	}
 }
 
 func (s *Service) Dispatch(event *Event) {
-	if eventHandler, ok := s.eventHandlerByVariant[event.Variant]; ok {
-		eventHandler(event)
+	willPropagate := true
+	if eventHandlers, ok := s.eventHandlersByVariant[event.Variant]; ok {
+		for _, eventHandler := range eventHandlers {
+			if eventHandler == nil {
+				continue
+			}
+			willPropagate = willPropagate && eventHandler(event)
+		}
+	}
+	if willPropagate {
+		s.propagateEvent(event)
 	}
 }
 
 func (s *Service) AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int) {
-	return 0
+	eventId = s.eventHandlersCount
+	s.eventHandlersCount++
+	if _, ok := s.eventHandlersByVariant[eventVariant]; !ok {
+		s.eventHandlersByVariant[eventVariant] = make([]EventHandler, 0)
+	}
+	eventHandlerIdx := len(s.eventHandlersByVariant[eventVariant])
+	s.variantByEventId[eventId] = eventVariant
+	s.eventHandlerIdxByEventId[eventId] = eventHandlerIdx
+	s.eventHandlersByVariant[eventVariant] = append(s.eventHandlersByVariant[eventVariant], fn)
+	return eventId
 }
 
 func (s *Service) RemoveEventListener(eventId int) {
-
+	variant, ok := s.variantByEventId[eventId]
+	if !ok {
+		return
+	}
+	eventHandlerIdx, ok := s.eventHandlerIdxByEventId[eventId]
+	if !ok {
+		return
+	}
+	s.eventHandlersByVariant[variant][eventHandlerIdx] = nil
 }
 
 func (s *Service) propagateEvent(event *Event) {
-
+	if parentService, ok := s.parent.(*Service); ok {
+		parentService.Dispatch(event)
+	}
 }
 
 func main() {
