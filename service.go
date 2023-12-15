@@ -1,4 +1,4 @@
-package main
+package service
 
 // PROBLEMS TO SOLVE FOR:
 // 1. Since services are typically singletons, I need a way to reset them to prevent test pollution
@@ -106,6 +106,8 @@ func (s *Service) RemoveEventListener(eventId int) {
 		return
 	}
 	s.eventHandlersByVariant[variant][eventHandlerIdx] = nil
+	delete(s.variantByEventId, eventId)
+	delete(s.eventHandlerIdxByEventId, eventId)
 }
 
 func (s *Service) propagateEvent(event *Event) {
