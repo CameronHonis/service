@@ -22,7 +22,7 @@ import (
 // 			Q. What do pointers get zero-valued to?
 //			A. nil
 //			Q. How do we handle circular dependencies? Should we?
-//			A. Circular dependencies are bad
+//			A. Circular dependencies are bad, so no.
 // 2. I can create a "Stubbed" struct that embeds the service in itself and overrides all the service's methods in order
 //     to intercept calls.
 //		Q. Can I automate overriding methods on a service?
@@ -34,33 +34,36 @@ import (
 //		D. The Stubbed struct should also be flushed for each test.
 //			Q. Does this mean we only need a single constructor?
 // 3. Two ways of handling side effects comes to mind:
-//		A. Using an event handler. To keep a non-circular dependency chain with this event handler service,
-//			the event handler service should not contain any dependencies. The event handler should allow services to
-//			establish side effects (multiple) linked to a dispatch variant. Order should not matter.
-//		B. To allow for control over event propagation, each service on its own should allow for event handling and event
-//			propagation.
+//		1. Using an event handler.
+//			A. To keep a non-circular dependency chain with this event handler service,
+//				the event handler service should not contain any dependencies. The event handler should allow services to
+//				establish side effects (multiple) linked to a dispatch variant. Order should not matter.
+//			B. To allow for control over event propagation, each service on its own should allow for event handling and event
+//				propagation.
+//		2. Using defined methods on the service.
+//			A. To react to field changes, both of these methods require a setter method to intercept the change and
+//				either dispatch an event or call a method directly.
+//		Reasons to dispatch events over direct invocations:
+//			* Easier to stub. I don't have to use a stub struct or define the entire interface to stub a single method
+//			* Allows for dynamic event handler allocations
+//			* Events to "bubble up" the chain of services, allows for side effects to be declared on other services
+//				than the dispatcher service (better separation of concerns).
+//		Reasons to use direct invocations over dispatching events:
+//			* Faster since no cache miss (?)
+//			* Easier to read. Can follow flow from "event" to side effect without understanding runtime setup
 // 4. The trivial way of handling config would be to pass the config as an argument to the service constructor, but
 //		this would not require config to be explicitly handled. Instead, I believe each service should explicitly declare
 //		a config ingestor. Initial configs and all modified config objects should be injected into the app/root service
 //		which then is passed down recursively and injected into the whole service tree.
 
-type EventVariant string
-
-type Event struct {
-	Variant EventVariant
-	Payload interface{}
-}
-type EventHandler func(event *Event) (willPropagate bool)
-
 type ServiceI interface {
-	InjectConfig(config interface{})
-	Flush()
+	InjectConfig(config ConfigI)
 	Dispatch(event *Event)
 	AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int)
 	RemoveEventListener(eventId int)
 
 	propagateEvent(event *Event)
-	ingestConfig(config interface{})
+	ingestConfig(config ConfigI)
 }
 
 type Service struct {
@@ -81,15 +84,11 @@ func NewService(parent ServiceI) *Service {
 	}
 }
 
-func (s *Service) InjectConfig(config interface{}) {
-	s.InjectConfig(config)
+func (s *Service) InjectConfig(config ConfigI) {
+	s.ingestConfig(config)
 	for _, subservice := range GetSubServices(s) {
 		subservice.InjectConfig(config)
 	}
-}
-
-func (s *Service) Flush() {
-	panic("did you forget to implement `Flush`?")
 }
 
 func (s *Service) Dispatch(event *Event) {
@@ -140,7 +139,9 @@ func (s *Service) propagateEvent(event *Event) {
 	}
 }
 
-func (s *Service) ingestConfig(config interface{}) {}
+func (s *Service) ingestConfig(config ConfigI) {
+	panic("did you forget to implement `ingestConfig`?")
+}
 
 func GetSubServices(s ServiceI) []ServiceI {
 	subServices := make([]ServiceI, 0)
