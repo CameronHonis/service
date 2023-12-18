@@ -90,8 +90,16 @@ var _ = Describe("Service", func() {
 		Expect(arr).To(HaveLen(1))
 		Expect(arr[0]).To(Equal(12))
 	})
-	It("can remove an event handler", func() {
-
+	When("an existing handler is removed", func() {
+		var handlerId int
+		BeforeEach(func() {
+			handlerId = adderService.AddEventListener(event.Variant, pushNum)
+		})
+		It("does not fire that event handler", func() {
+			adderService.RemoveEventListener(handlerId)
+			adderService.Dispatch(&event)
+			Expect(arr).To(HaveLen(0))
+		})
 	})
 	When("the event handler returns false", func() {
 		BeforeEach(func() {

@@ -82,6 +82,10 @@ func NewService(parent ServiceI) *Service {
 }
 
 func (s *Service) InjectConfig(config interface{}) {
+	s.InjectConfig(config)
+	for _, subservice := range GetSubServices(s) {
+		subservice.InjectConfig(config)
+	}
 }
 
 func (s *Service) Flush() {
