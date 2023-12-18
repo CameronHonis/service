@@ -68,6 +68,7 @@ type ServiceI interface {
 
 type Service struct {
 	parent                   ServiceI
+	config                   ConfigI
 	eventHandlersCount       int
 	variantByEventId         map[int]EventVariant
 	eventHandlerIdxByEventId map[int]int
@@ -77,6 +78,7 @@ type Service struct {
 func NewService(parent ServiceI) *Service {
 	return &Service{
 		parent:                   parent,
+		config:                   nil,
 		eventHandlersCount:       0,
 		variantByEventId:         make(map[int]EventVariant),
 		eventHandlerIdxByEventId: make(map[int]int),
@@ -85,7 +87,8 @@ func NewService(parent ServiceI) *Service {
 }
 
 func (s *Service) InjectConfig(config ConfigI) {
-	s.ingestConfig(config)
+	mergedConfig := s.config.MergeWith(config)
+	s.ingestConfig(mergedConfig)
 	for _, subservice := range GetSubServices(s) {
 		subservice.InjectConfig(config)
 	}
