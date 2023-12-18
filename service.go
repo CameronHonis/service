@@ -1,5 +1,10 @@
 package service
 
+import (
+	"fmt"
+	"reflect"
+)
+
 // PROBLEMS TO SOLVE FOR:
 // 1. Since services are typically singletons, I need a way to reset them to prevent test pollution
 // 2. I need a way to stub/mock services for testing.
@@ -10,6 +15,7 @@ package service
 //		C. Sometimes I need to stub a service to return a specific error. This is useful when I want to test a specific
 //			branch of code that depends on the return value of a service.
 // 3. I need to handle side effects.
+// 4. I need to inject configuration.
 
 // SOLUTIONS:
 // 1. I can create a Reset method on each service that resets all of its fields to their zero values with the "reflect" package.
@@ -33,6 +39,10 @@ package service
 //			establish side effects (multiple) linked to a dispatch variant. Order should not matter.
 //		B. To allow for control over event propagation, each service on its own should allow for event handling and event
 //			propagation.
+// 4. The trivial way of handling config would be to pass the config as an argument to the service constructor, but
+//		this would not require config to be explicitly handled. Instead, I believe each service should explicitly declare
+//		a config ingestor. Initial configs and all modified config objects should be injected into the app/root service
+//		which then is passed down recursively and injected into the whole service tree.
 
 type EventVariant string
 
@@ -43,12 +53,14 @@ type Event struct {
 type EventHandler func(event *Event) (willPropagate bool)
 
 type ServiceI interface {
+	InjectConfig(config interface{})
 	Flush()
 	Dispatch(event *Event)
 	AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int)
 	RemoveEventListener(eventId int)
 
 	propagateEvent(event *Event)
+	ingestConfig(config interface{})
 }
 
 type Service struct {
@@ -67,6 +79,9 @@ func NewService(parent ServiceI) *Service {
 		eventHandlerIdxByEventId: make(map[int]int),
 		eventHandlersByVariant:   make(map[EventVariant][]EventHandler),
 	}
+}
+
+func (s *Service) InjectConfig(config interface{}) {
 }
 
 func (s *Service) Flush() {
@@ -119,4 +134,24 @@ func (s *Service) propagateEvent(event *Event) {
 	if parentService, ok := s.parent.(*Service); ok {
 		parentService.Dispatch(event)
 	}
+}
+
+func (s *Service) ingestConfig(config interface{}) {}
+
+func GetSubServices(s ServiceI) []ServiceI {
+	subServices := make([]ServiceI, 0)
+	sVal := reflect.ValueOf(s).Elem()
+	fieldCount := sVal.NumField()
+	for i := 0; i < fieldCount; i++ {
+		fieldVal := sVal.Field(i)
+		fmt.Printf("%s: %s\n", sVal.Type().Field(i).Name, fieldVal.Kind())
+		if !fieldVal.CanInterface() || fieldVal.Kind() != reflect.Ptr {
+			continue
+		}
+		fieldType := fieldVal.Elem().Type()
+		if fieldType.Implements(reflect.TypeOf((*ServiceI)(nil)).Elem()) {
+			subServices = append(subServices, fieldVal.Interface().(ServiceI))
+		}
+	}
+	return subServices
 }
