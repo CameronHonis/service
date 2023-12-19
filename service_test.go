@@ -7,9 +7,8 @@ import (
 
 type AdderService struct {
 	*Service
-	CutterService   *CutterService
-	OtherSubService *OtherSubService
-	fieldA          int
+	config *AdderService
+	fieldA int
 }
 
 func NewAdderService() *AdderService {
@@ -17,13 +16,17 @@ func NewAdderService() *AdderService {
 		Service: NewService(nil),
 		fieldA:  1,
 	}
-	adderService.CutterService = NewCutterService(adderService.Service)
-	adderService.OtherSubService = NewSubservice(adderService.Service)
+	adderService.AddDependency(NewCutterService(adderService.Service))
+	adderService.AddDependency(NewSubservice(adderService.Service))
 	return adderService
+}
+
+func (as *AdderService) ingestConfig(config ConfigI) {
 }
 
 type CutterService struct {
 	*Service
+	config *CutterConfig
 }
 
 func NewCutterService(parent *Service) *CutterService {
@@ -32,8 +35,12 @@ func NewCutterService(parent *Service) *CutterService {
 	}
 }
 
+func (cs *CutterService) ingestConfig(config ConfigI) {
+}
+
 type OtherSubService struct {
 	*Service
+	config           *OtherSubServiceConfig
 	subserviceFieldA string
 }
 
@@ -42,6 +49,9 @@ func NewSubservice(parent *Service) *OtherSubService {
 		Service:          NewService(parent),
 		subserviceFieldA: "hello",
 	}
+}
+
+func (cs *OtherSubService) ingestConfig(config ConfigI) {
 }
 
 type ServiceWithPrivateService struct {
@@ -115,24 +125,42 @@ var _ = Describe("Service", func() {
 	})
 })
 
-var _ = Describe("GetSubServices", func() {
+var _ = Describe("GetDependencies", func() {
 	var adderService *AdderService
 	BeforeEach(func() {
 		adderService = NewAdderService()
 	})
 	It("retrieves subservices", func() {
-		subservices := GetSubServices(adderService)
-		Expect(subservices).To(HaveLen(2))
-		Expect(subservices[0]).To(Equal(adderService.CutterService))
-		Expect(subservices[1]).To(Equal(adderService.OtherSubService))
-	})
-	When("a private field exists", func() {
-		var serviceWithPrivateService *ServiceWithPrivateService
-		BeforeEach(func() {
-			serviceWithPrivateService = NewServiceWithPrivateService()
-		})
-		It("does not evaluate the private field", func() {
-			_ = GetSubServices(serviceWithPrivateService)
-		})
+		deps := adderService.GetDependencies()
+		Expect(deps).To(HaveLen(2))
 	})
 })
+
+type AdderConfig struct {
+	ConfigFieldOne        int
+	CutterConfig          *CutterConfig
+	OtherSubServiceConfig *OtherSubServiceConfig
+}
+
+func (ac *AdderConfig) MergeWith(config ConfigI) ConfigI {
+	configCopy := *(config.(*AdderConfig))
+	return &configCopy
+}
+
+type CutterConfig struct {
+	IsHotBlade bool
+}
+
+func (ac *CutterConfig) MergeWith(config ConfigI) ConfigI {
+	configCopy := *(config.(*CutterConfig))
+	return &configCopy
+}
+
+type OtherSubServiceConfig struct {
+	OtherSubServiceSecret string
+}
+
+func (subServiceConfig *OtherSubServiceConfig) MergeWith(config ConfigI) ConfigI {
+	configCopy := *(config.(*OtherSubServiceConfig))
+	return &configCopy
+}

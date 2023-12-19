@@ -1,10 +1,5 @@
 package service
 
-import (
-	"fmt"
-	"reflect"
-)
-
 // PROBLEMS TO SOLVE FOR:
 // 1. Since services are typically singletons, I need a way to reset them to prevent test pollution
 // 2. I need a way to stub/mock services for testing.
@@ -55,24 +50,39 @@ import (
 //		this would not require config to be explicitly handled. Instead, I believe each service should explicitly declare
 //		a config ingestor. Initial configs and all modified config objects should be injected into the app/root service
 //		which then is passed down recursively and injected into the whole service tree.
+//
+//		To implement the injection on the service struct, it requires that the dependencies on the service are
+//		stored internally on the service, rather than storing the dependencies on the service implementation.
+//
+//		It's not possible to call a per-service method implementation to be invoked from a generic service method.
+//		instead of expecting each service to implement a config update handler, it should be the expectation that the
+//		config does not change. This requires that the service builder takes a config to instantiate the service instance.
+//		This also means that config injection should not be supported on the generic Service interface. Instead, each
+//		service can implement their own custom config injection method.
 
 type ServiceI interface {
-	InjectConfig(config ConfigI)
+	GetConfig() ConfigI
+	AddDependency(service ServiceI)
+	GetDependencies() []ServiceI
 	Dispatch(event *Event)
 	AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int)
 	RemoveEventListener(eventId int)
 
 	propagateEvent(event *Event)
-	ingestConfig(config ConfigI)
 }
 
 type Service struct {
 	parent                   ServiceI
+	dependencies             []ServiceI
 	config                   ConfigI
 	eventHandlersCount       int
 	variantByEventId         map[int]EventVariant
 	eventHandlerIdxByEventId map[int]int
 	eventHandlersByVariant   map[EventVariant][]EventHandler
+}
+
+func (s *Service) GetConfig() ConfigI {
+	return s.config
 }
 
 func NewService(parent ServiceI) *Service {
@@ -86,12 +96,12 @@ func NewService(parent ServiceI) *Service {
 	}
 }
 
-func (s *Service) InjectConfig(config ConfigI) {
-	mergedConfig := s.config.MergeWith(config)
-	s.ingestConfig(mergedConfig)
-	for _, subservice := range GetSubServices(s) {
-		subservice.InjectConfig(config)
-	}
+func (s *Service) AddDependency(service ServiceI) {
+	s.dependencies = append(s.dependencies, service)
+}
+
+func (s *Service) GetDependencies() []ServiceI {
+	return s.dependencies
 }
 
 func (s *Service) Dispatch(event *Event) {
@@ -140,26 +150,4 @@ func (s *Service) propagateEvent(event *Event) {
 	if parentService, ok := s.parent.(*Service); ok {
 		parentService.Dispatch(event)
 	}
-}
-
-func (s *Service) ingestConfig(config ConfigI) {
-	panic("did you forget to implement `ingestConfig`?")
-}
-
-func GetSubServices(s ServiceI) []ServiceI {
-	subServices := make([]ServiceI, 0)
-	sVal := reflect.ValueOf(s).Elem()
-	fieldCount := sVal.NumField()
-	for i := 0; i < fieldCount; i++ {
-		fieldVal := sVal.Field(i)
-		fmt.Printf("%s: %s\n", sVal.Type().Field(i).Name, fieldVal.Kind())
-		if !fieldVal.CanInterface() || fieldVal.Kind() != reflect.Ptr {
-			continue
-		}
-		fieldType := fieldVal.Elem().Type()
-		if fieldType.Implements(reflect.TypeOf((*ServiceI)(nil)).Elem()) {
-			subServices = append(subServices, fieldVal.Interface().(ServiceI))
-		}
-	}
-	return subServices
 }
