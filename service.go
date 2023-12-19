@@ -11,6 +11,7 @@ package service
 //			branch of code that depends on the return value of a service.
 // 3. I need to handle side effects.
 // 4. I need to inject configuration.
+// 5. I need a simple way to define a DAG of services
 
 // SOLUTIONS:
 // 1. I can create a Reset method on each service that resets all of its fields to their zero values with the "reflect" package.
@@ -59,6 +60,24 @@ package service
 //		config does not change. This requires that the service builder takes a config to instantiate the service instance.
 //		This also means that config injection should not be supported on the generic Service interface. Instead, each
 //		service can implement their own custom config injection method.
+// 5. It's not practical to use a tree structure for the service architecture. The problem is that this restricts parents
+//		from sharing their dependencies between each other. At best, this creates a slight performance hit, but at worst,
+//		this prevents dependencies from being state shared singletons, if that's what is required of them. This issue
+//		can span multiple "levels", so that grandparents would never have direct access to their dependency's dependencies.
+//
+//		A question I think is worth exploring in the future is, "should the root service (or an independent entity) be
+//		responsible for managing dependencies?". It would be great if we could just instantiate a root node and build
+//		off that when the app starts. It could manage things like auto-scaling (and service lifetimes?) for us.
+//		This is essentially the role of an autowire
+//
+//		A simpler approach would be to allow many services to share a dependency. This deviates from the current expectation
+//		that dependencies are created as a cascade of their parent's creation - this approach disallows two services to
+//		share a single dependency instance. Instead, it should be the expectation that all services are built independent
+//		of each other, and glued together after-wards. It's not required to create a service hierarchy in this order, but
+//		it seems like it's the most obvious route. The build process can even be formalized in a minimal information
+//		DAG structure (e.g. service names pointed to other service names).
+//
+//		For now, it seems best to bake out an explicit build step that hard codes all the service connections.
 
 type ServiceI interface {
 	GetConfig() ConfigI
@@ -85,10 +104,10 @@ func (s *Service) GetConfig() ConfigI {
 	return s.config
 }
 
-func NewService(parent ServiceI) *Service {
+func NewService(config ConfigI) *Service {
 	return &Service{
-		parent:                   parent,
-		config:                   nil,
+		parent:                   nil,
+		config:                   config,
 		eventHandlersCount:       0,
 		variantByEventId:         make(map[int]EventVariant),
 		eventHandlerIdxByEventId: make(map[int]int),
@@ -96,8 +115,9 @@ func NewService(parent ServiceI) *Service {
 	}
 }
 
-func (s *Service) AddDependency(service ServiceI) {
-	s.dependencies = append(s.dependencies, service)
+func (s *Service) AddDependency(dependency ServiceI) {
+	s.dependencies = append(s.dependencies, dependency)
+	dependency.(*Service).parent = s
 }
 
 func (s *Service) GetDependencies() []ServiceI {
