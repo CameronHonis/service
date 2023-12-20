@@ -1,5 +1,10 @@
 package service
 
+import (
+	"fmt"
+	"reflect"
+)
+
 // PROBLEMS TO SOLVE FOR:
 // 1. Since services are typically singletons, I need a way to reset them to prevent test pollution
 // 2. I need a way to stub/mock services for testing.
@@ -78,11 +83,16 @@ package service
 //		DAG structure (e.g. service names pointed to other service names).
 //
 //		For now, it seems best to bake out an explicit build step that hard codes all the service connections.
+//
+//		Update: I just realized that referencing dependencies is a nightmare if the underlying data structure for them
+//		is an array. Instead, it makes more sense to keep them as fields on a service. This makes getting dependencies
+//		a bit harder, since a generic method cannot be defined. A function called `GetServiceDependencies` will iterate
+//		and collect all service values on a service.
 
+type Marker struct{}
 type ServiceI interface {
-	GetConfig() ConfigI
-	AddDependency(service ServiceI)
-	GetDependencies() []ServiceI
+	Config() ConfigI
+	Dependencies() []ServiceI
 	Dispatch(event *Event)
 	AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int)
 	RemoveEventListener(eventId int)
@@ -90,22 +100,23 @@ type ServiceI interface {
 	propagateEvent(event *Event)
 }
 
-type Service struct {
+type Service[CT ConfigI] struct {
+	embeddedIn               ServiceI
 	parent                   ServiceI
-	dependencies             []ServiceI
-	config                   ConfigI
+	config                   CT
 	eventHandlersCount       int
 	variantByEventId         map[int]EventVariant
 	eventHandlerIdxByEventId map[int]int
 	eventHandlersByVariant   map[EventVariant][]EventHandler
 }
 
-func (s *Service) GetConfig() ConfigI {
+func (s *Service[CT]) Config() ConfigI {
 	return s.config
 }
 
-func NewService(config ConfigI) *Service {
-	return &Service{
+func NewService[CT ConfigI](service ServiceI, config CT) *Service[CT] {
+	return &Service[CT]{
+		embeddedIn:               service,
 		parent:                   nil,
 		config:                   config,
 		eventHandlersCount:       0,
@@ -115,16 +126,7 @@ func NewService(config ConfigI) *Service {
 	}
 }
 
-func (s *Service) AddDependency(dependency ServiceI) {
-	s.dependencies = append(s.dependencies, dependency)
-	dependency.(*Service).parent = s
-}
-
-func (s *Service) GetDependencies() []ServiceI {
-	return s.dependencies
-}
-
-func (s *Service) Dispatch(event *Event) {
+func (s *Service[CT]) Dispatch(event *Event) {
 	willPropagate := true
 	if eventHandlers, ok := s.eventHandlersByVariant[event.Variant]; ok {
 		for _, eventHandler := range eventHandlers {
@@ -139,7 +141,31 @@ func (s *Service) Dispatch(event *Event) {
 	}
 }
 
-func (s *Service) AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int) {
+func (s *Service[CT]) Dependencies() []ServiceI {
+	services := make([]ServiceI, 0)
+	sVal := reflect.ValueOf(s.embeddedIn).Elem()
+	sType := sVal.Type()
+	fieldCount := sVal.NumField()
+	for i := 0; i < fieldCount; i++ {
+		fieldName := sType.Field(i).Name
+		fieldVal := sVal.Field(i)
+		fieldType := fieldVal.Type()
+		// if I called this method from a struct that embeds Service, how would I get the embedding struct?
+		fmt.Printf("\n%s (%s): %s\n", fieldName, fieldType, fieldVal)
+		if !fieldVal.CanInterface() {
+			continue
+		}
+
+		a := fieldVal.Interface()
+		fieldService, ok := a.(ServiceI)
+		if ok {
+			services = append(services, fieldService)
+		}
+	}
+	return services
+}
+
+func (s *Service[CT]) AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int) {
 	eventId = s.eventHandlersCount
 	s.eventHandlersCount++
 	if _, ok := s.eventHandlersByVariant[eventVariant]; !ok {
@@ -152,7 +178,7 @@ func (s *Service) AddEventListener(eventVariant EventVariant, fn EventHandler) (
 	return eventId
 }
 
-func (s *Service) RemoveEventListener(eventId int) {
+func (s *Service[CT]) RemoveEventListener(eventId int) {
 	variant, ok := s.variantByEventId[eventId]
 	if !ok {
 		return
@@ -166,8 +192,9 @@ func (s *Service) RemoveEventListener(eventId int) {
 	delete(s.eventHandlerIdxByEventId, eventId)
 }
 
-func (s *Service) propagateEvent(event *Event) {
-	if parentService, ok := s.parent.(*Service); ok {
-		parentService.Dispatch(event)
+func (s *Service[CT]) propagateEvent(event *Event) {
+	if s.parent == nil {
+		return
 	}
+	s.parent.(ServiceI).Dispatch(event)
 }

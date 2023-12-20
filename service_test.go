@@ -6,78 +6,72 @@ import (
 )
 
 type AdderService struct {
-	*Service
-	config *AdderService
-	fieldA int
+	Service[*AdderConfig]
+
+	__dependencies__ Marker
+	CutterService    *CutterService
+	OtherSubService  *OtherSubService
+
+	__state__ Marker
+	fieldA    int
 }
 
-func NewAdderService() *AdderService {
+func NewAdderService(config *AdderConfig) *AdderService {
 	adderService := &AdderService{
-		Service: NewService(nil),
-		fieldA:  1,
+		fieldA: 1,
 	}
-	adderService.AddDependency(NewCutterService(adderService.Service))
-	adderService.AddDependency(NewSubservice(adderService.Service))
+	adderService.Service = *NewService(adderService, config)
 	return adderService
 }
 
-func (as *AdderService) ingestConfig(config ConfigI) {
-}
-
 type CutterService struct {
-	*Service
-	config *CutterConfig
+	Service[*CutterConfig]
+
+	__dependencies__ Marker
+
+	__state__ Marker
 }
 
-func NewCutterService(parent *Service) *CutterService {
-	return &CutterService{
-		Service: NewService(parent),
-	}
-}
-
-func (cs *CutterService) ingestConfig(config ConfigI) {
+func NewCutterService(config *CutterConfig) *CutterService {
+	cutterService := &CutterService{}
+	cutterService.Service = *NewService(cutterService, config)
+	return cutterService
 }
 
 type OtherSubService struct {
-	*Service
-	config           *OtherSubServiceConfig
+	Service[*OtherSubServiceConfig]
 	subserviceFieldA string
 }
 
-func NewSubservice(parent *Service) *OtherSubService {
-	return &OtherSubService{
-		Service:          NewService(parent),
+func NewSubService(config *OtherSubServiceConfig) *OtherSubService {
+	otherSubService := &OtherSubService{
 		subserviceFieldA: "hello",
 	}
+	otherSubService.Service = *NewService(otherSubService, config)
+	return otherSubService
 }
 
-func (cs *OtherSubService) ingestConfig(config ConfigI) {
-}
+func BuildServices() *AdderService {
+	adderService := NewAdderService(&AdderConfig{})
+	cutterService := NewCutterService(&CutterConfig{})
+	otherSubService := NewSubService(&OtherSubServiceConfig{})
 
-type ServiceWithPrivateService struct {
-	*Service
-	privateFieldA  int
-	privateService *OtherSubService
-}
+	// TODO: replace with AddDependency calls
+	adderService.CutterService = cutterService
+	cutterService.parent = adderService
+	adderService.OtherSubService = otherSubService
+	otherSubService.parent = adderService
 
-func NewServiceWithPrivateService() *ServiceWithPrivateService {
-	rtn := &ServiceWithPrivateService{
-		Service:       NewService(nil),
-		privateFieldA: 1,
-	}
-	rtn.privateService = NewSubservice(rtn.Service)
-	return rtn
+	return adderService
 }
 
 var _ = Describe("Service", func() {
 	var adderService *AdderService
-	var cutterService *CutterService
 	var arr []int
 	var pushNum func(*Event) bool
 	var event Event
 	BeforeEach(func() {
-		adderService = NewAdderService()
-		cutterService = NewCutterService(adderService.Service)
+		adderService = BuildServices()
 		arr = make([]int, 0)
 		pushNum = func(event *Event) bool {
 			arr = append(arr, event.Payload.(int))
@@ -96,7 +90,7 @@ var _ = Describe("Service", func() {
 	})
 	It("propagates the event to the parent", func() {
 		adderService.AddEventListener(event.Variant, pushNum)
-		cutterService.Dispatch(&event)
+		adderService.CutterService.Dispatch(&event)
 		Expect(arr).To(HaveLen(1))
 		Expect(arr[0]).To(Equal(12))
 	})
@@ -119,27 +113,25 @@ var _ = Describe("Service", func() {
 		})
 		It("does not propagate the event to the parent", func() {
 			adderService.AddEventListener(event.Variant, pushNum)
-			cutterService.Dispatch(&event)
+			adderService.CutterService.Dispatch(&event)
 			Expect(arr).To(HaveLen(0))
 		})
 	})
 })
 
-var _ = Describe("GetDependencies", func() {
+var _ = Describe("Dependencies", func() {
 	var adderService *AdderService
 	BeforeEach(func() {
-		adderService = NewAdderService()
+		adderService = BuildServices()
 	})
 	It("retrieves subservices", func() {
-		deps := adderService.GetDependencies()
+		deps := adderService.Dependencies()
 		Expect(deps).To(HaveLen(2))
 	})
 })
 
 type AdderConfig struct {
-	ConfigFieldOne        int
-	CutterConfig          *CutterConfig
-	OtherSubServiceConfig *OtherSubServiceConfig
+	ConfigFieldOne int
 }
 
 func (ac *AdderConfig) MergeWith(config ConfigI) ConfigI {
