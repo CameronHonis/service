@@ -5,6 +5,33 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+type AdderConfig struct {
+	ConfigFieldOne int
+}
+
+func (ac *AdderConfig) MergeWith(config ConfigI) ConfigI {
+	configCopy := *(config.(*AdderConfig))
+	return &configCopy
+}
+
+type CutterConfig struct {
+	IsHotBlade bool
+}
+
+func (ac *CutterConfig) MergeWith(config ConfigI) ConfigI {
+	configCopy := *(config.(*CutterConfig))
+	return &configCopy
+}
+
+type OtherSubServiceConfig struct {
+	OtherSubServiceSecret string
+}
+
+func (subServiceConfig *OtherSubServiceConfig) MergeWith(config ConfigI) ConfigI {
+	configCopy := *(config.(*OtherSubServiceConfig))
+	return &configCopy
+}
+
 type AdderService struct {
 	Service[*AdderConfig]
 
@@ -56,11 +83,8 @@ func BuildServices() *AdderService {
 	cutterService := NewCutterService(&CutterConfig{})
 	otherSubService := NewSubService(&OtherSubServiceConfig{})
 
-	// TODO: replace with AddDependency calls
-	adderService.CutterService = cutterService
-	cutterService.parent = adderService
-	adderService.OtherSubService = otherSubService
-	otherSubService.parent = adderService
+	adderService.AddDependency(cutterService)
+	adderService.AddDependency(otherSubService)
 
 	return adderService
 }
@@ -130,29 +154,30 @@ var _ = Describe("Dependencies", func() {
 	})
 })
 
-type AdderConfig struct {
-	ConfigFieldOne int
-}
+var _ = Describe("AddDependency", func() {
+	var adderService *AdderService
+	var cutterService *CutterService
+	type NonsenseService struct {
+		Service[*CutterConfig]
+	}
+	BeforeEach(func() {
+		adderService = NewAdderService(&AdderConfig{})
+		cutterService = NewCutterService(&CutterConfig{})
+	})
 
-func (ac *AdderConfig) MergeWith(config ConfigI) ConfigI {
-	configCopy := *(config.(*AdderConfig))
-	return &configCopy
-}
-
-type CutterConfig struct {
-	IsHotBlade bool
-}
-
-func (ac *CutterConfig) MergeWith(config ConfigI) ConfigI {
-	configCopy := *(config.(*CutterConfig))
-	return &configCopy
-}
-
-type OtherSubServiceConfig struct {
-	OtherSubServiceSecret string
-}
-
-func (subServiceConfig *OtherSubServiceConfig) MergeWith(config ConfigI) ConfigI {
-	configCopy := *(config.(*OtherSubServiceConfig))
-	return &configCopy
-}
+	It("adds the dependency as a field on adderService", func() {
+		adderService.AddDependency(cutterService)
+		Expect(adderService.CutterService).To(Equal(cutterService))
+	})
+	It("sets the parent of the dependency to adderService", func() {
+		adderService.AddDependency(cutterService)
+		Expect(cutterService.parent).To(Equal(adderService))
+	})
+	When("the parent service does not have a field for the dependency", func() {
+		It("panics", func() {
+			Expect(func() {
+				adderService.AddDependency(&NonsenseService{})
+			}).To(Panic())
+		})
+	})
+})

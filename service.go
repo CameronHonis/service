@@ -93,16 +93,18 @@ type Marker struct{}
 type ServiceI interface {
 	Config() ConfigI
 	Dependencies() []ServiceI
+	AddDependency(service ServiceI)
 	Dispatch(event *Event)
 	AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int)
 	RemoveEventListener(eventId int)
 
 	propagateEvent(event *Event)
+	setParent(parent ServiceI)
 }
 
 type Service[CT ConfigI] struct {
-	embeddedIn               ServiceI
 	parent                   ServiceI
+	embeddedIn               ServiceI
 	config                   CT
 	eventHandlersCount       int
 	variantByEventId         map[int]EventVariant
@@ -165,6 +167,16 @@ func (s *Service[CT]) Dependencies() []ServiceI {
 	return services
 }
 
+func (s *Service[CT]) AddDependency(dep ServiceI) {
+	// set the dependency on this service
+	fieldName := reflect.TypeOf(dep).Elem().Name()
+	parVal := reflect.ValueOf(s.embeddedIn).Elem()
+	parVal.FieldByName(fieldName).Set(reflect.ValueOf(dep))
+
+	// set the parent on the dependency
+	dep.setParent(s.embeddedIn)
+}
+
 func (s *Service[CT]) AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int) {
 	eventId = s.eventHandlersCount
 	s.eventHandlersCount++
@@ -197,4 +209,8 @@ func (s *Service[CT]) propagateEvent(event *Event) {
 		return
 	}
 	s.parent.(ServiceI).Dispatch(event)
+}
+
+func (s *Service[CT]) setParent(parent ServiceI) {
+	s.parent = parent
 }
