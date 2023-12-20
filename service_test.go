@@ -1,6 +1,7 @@
 package service
 
 import (
+	. "github.com/CameronHonis/marker"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
