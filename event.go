@@ -2,8 +2,8 @@ package service
 
 type EventVariant string
 
-type Event struct {
-	Variant EventVariant
-	Payload interface{}
+type EventI interface {
+	GetVariant() EventVariant
+	GetPayload() interface{}
 }
-type EventHandler func(event *Event) (willPropagate bool)
+type EventHandler func(event EventI) (willPropagate bool)
