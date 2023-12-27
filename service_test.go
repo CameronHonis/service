@@ -93,28 +93,28 @@ func BuildServices() *AdderService {
 var _ = Describe("Service", func() {
 	var adderService *AdderService
 	var arr []int
-	var pushNum func(*Event) bool
+	var pushNum func(EventI) bool
 	var event Event
 	BeforeEach(func() {
 		adderService = BuildServices()
 		arr = make([]int, 0)
-		pushNum = func(event *Event) bool {
-			arr = append(arr, event.Payload.(int))
+		pushNum = func(event EventI) bool {
+			arr = append(arr, event.Payload().(int))
 			return true
 		}
 		event = Event{
-			Variant: "someEvent",
-			Payload: 12,
+			variant: "someEvent",
+			payload: 12,
 		}
 	})
 	It("can add and trigger an event handler", func() {
-		adderService.AddEventListener(event.Variant, pushNum)
+		adderService.AddEventListener(event.Variant(), pushNum)
 		adderService.Dispatch(&event)
 		Expect(arr).To(HaveLen(1))
 		Expect(arr[0]).To(Equal(12))
 	})
 	It("propagates the event to the parent", func() {
-		adderService.AddEventListener(event.Variant, pushNum)
+		adderService.AddEventListener(event.Variant(), pushNum)
 		adderService.CutterService.Dispatch(&event)
 		Expect(arr).To(HaveLen(1))
 		Expect(arr[0]).To(Equal(12))
@@ -122,7 +122,7 @@ var _ = Describe("Service", func() {
 	When("an existing handler is removed", func() {
 		var handlerId int
 		BeforeEach(func() {
-			handlerId = adderService.AddEventListener(event.Variant, pushNum)
+			handlerId = adderService.AddEventListener(event.Variant(), pushNum)
 		})
 		It("does not fire that event handler", func() {
 			adderService.RemoveEventListener(handlerId)
@@ -132,12 +132,12 @@ var _ = Describe("Service", func() {
 	})
 	When("the event handler returns false", func() {
 		BeforeEach(func() {
-			pushNum = func(event *Event) bool {
+			pushNum = func(event EventI) bool {
 				return false
 			}
 		})
 		It("does not propagate the event to the parent", func() {
-			adderService.AddEventListener(event.Variant, pushNum)
+			adderService.AddEventListener(event.Variant(), pushNum)
 			adderService.CutterService.Dispatch(&event)
 			Expect(arr).To(HaveLen(0))
 		})

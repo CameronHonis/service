@@ -9,11 +9,11 @@ type ServiceI interface {
 	Config() ConfigI
 	Dependencies() []ServiceI
 	AddDependency(service ServiceI)
-	Dispatch(event *Event)
+	Dispatch(event EventI)
 	AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int)
 	RemoveEventListener(eventId int)
 
-	propagateEvent(event *Event)
+	propagateEvent(event EventI)
 	setParent(parent ServiceI)
 }
 
@@ -43,9 +43,9 @@ func NewService[CT ConfigI](service ServiceI, config CT) *Service[CT] {
 	}
 }
 
-func (s *Service[CT]) Dispatch(event *Event) {
+func (s *Service[CT]) Dispatch(event EventI) {
 	willPropagate := true
-	if eventHandlers, ok := s.eventHandlersByVariant[event.Variant]; ok {
+	if eventHandlers, ok := s.eventHandlersByVariant[event.Variant()]; ok {
 		for _, eventHandler := range eventHandlers {
 			if eventHandler == nil {
 				continue
@@ -119,7 +119,7 @@ func (s *Service[CT]) RemoveEventListener(eventId int) {
 	delete(s.eventHandlerIdxByEventId, eventId)
 }
 
-func (s *Service[CT]) propagateEvent(event *Event) {
+func (s *Service[CT]) propagateEvent(event EventI) {
 	if s.parent == nil {
 		return
 	}
