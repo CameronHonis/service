@@ -53,6 +53,14 @@ func (s *Service[CT]) Dispatch(event EventI) {
 			willPropagate = willPropagate && eventHandler(event)
 		}
 	}
+	if eventHandlers, ok := s.eventHandlersByVariant[ALL_EVENTS]; ok {
+		for _, eventHandler := range eventHandlers {
+			if eventHandler == nil {
+				continue
+			}
+			willPropagate = willPropagate && eventHandler(event)
+		}
+	}
 	if willPropagate {
 		s.propagateEvent(event)
 	}

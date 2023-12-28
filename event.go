@@ -2,6 +2,8 @@ package service
 
 type EventVariant string
 
+const ALL_EVENTS EventVariant = "ALL_EVENTS"
+
 type EventI interface {
 	Variant() EventVariant
 	Payload() interface{}

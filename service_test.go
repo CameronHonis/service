@@ -113,6 +113,12 @@ var _ = Describe("Service", func() {
 		Expect(arr).To(HaveLen(1))
 		Expect(arr[0]).To(Equal(12))
 	})
+	It("can add and trigger a universal event handler", func() {
+		adderService.AddEventListener(ALL_EVENTS, pushNum)
+		adderService.Dispatch(&event)
+		Expect(arr).To(HaveLen(1))
+		Expect(arr[0]).To(Equal(12))
+	})
 	It("propagates the event to the parent", func() {
 		adderService.AddEventListener(event.Variant(), pushNum)
 		adderService.CutterService.Dispatch(&event)
