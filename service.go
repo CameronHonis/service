@@ -83,11 +83,13 @@ func (s *Service) Dependencies() []ServiceI {
 
 func (s *Service) AddDependency(dep ServiceI) {
 	// validate dep
-	depVal := reflect.ValueOf(dep).Elem()
+	depPtrVal := reflect.ValueOf(dep)
+	depVal := depPtrVal.Elem()
+	depPtrType := depPtrVal.Type()
 	depType := depVal.Type()
-	service := depVal.FieldByName("Service")
-	if !service.IsValid() {
-		panic("dependency does not embed Service")
+	setParent := depPtrVal.MethodByName("SetParent")
+	if !setParent.IsValid() {
+		panic("dependency does not contain method 'SetParent', did you forget to embed Service?")
 	}
 
 	// validate parent field exists
@@ -98,7 +100,6 @@ func (s *Service) AddDependency(dep ServiceI) {
 		parValField = parVal.FieldByName(expFieldName)
 	} else {
 		ServiceIType := reflect.TypeOf((*ServiceI)(nil)).Elem()
-		depPtrType := reflect.ValueOf(dep).Type()
 		for i := 0; i < parVal.NumField(); i++ {
 			fieldVal := parVal.Field(i)
 			fieldType := fieldVal.Type()
@@ -116,7 +117,7 @@ func (s *Service) AddDependency(dep ServiceI) {
 	}
 
 	// set the parent on the dependency
-	service.Addr().Interface().(*Service).SetParent(s.embeddedIn)
+	setParent.Call([]reflect.Value{reflect.ValueOf(s.embeddedIn)})
 
 	// set the dependency on this service
 	parValField.Set(reflect.ValueOf(dep))
