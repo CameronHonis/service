@@ -36,9 +36,10 @@ func (subServiceConfig *OtherSubServiceConfig) MergeWith(config ConfigI) ConfigI
 type AdderService struct {
 	Service
 
-	__dependencies__ Marker
-	CutterService    *CutterService
-	OtherSubService  *OtherSubService
+	__dependencies__           Marker
+	CutterService              *CutterService
+	OtherSubService            *OtherSubService
+	StrangelyNamedServiceField *StrangeService
 
 	__state__ Marker
 	fieldA    int
@@ -71,6 +72,16 @@ type OtherSubService struct {
 	subserviceFieldA string
 }
 
+type StrangeService struct {
+	Service
+}
+
+func NewStrangeService() *StrangeService {
+	s := &StrangeService{}
+	s.Service = *NewService(s, nil)
+	return s
+}
+
 func NewSubService(config *OtherSubServiceConfig) *OtherSubService {
 	otherSubService := &OtherSubService{
 		subserviceFieldA: "hello",
@@ -83,9 +94,11 @@ func BuildServices() *AdderService {
 	adderService := NewAdderService(&AdderConfig{})
 	cutterService := NewCutterService(&CutterConfig{})
 	otherSubService := NewSubService(&OtherSubServiceConfig{})
+	strangeService := NewStrangeService()
 
 	adderService.AddDependency(cutterService)
 	adderService.AddDependency(otherSubService)
+	adderService.AddDependency(strangeService)
 
 	return adderService
 }
@@ -157,7 +170,7 @@ var _ = Describe("Dependencies", func() {
 	})
 	It("retrieves subservices", func() {
 		deps := adderService.Dependencies()
-		Expect(deps).To(HaveLen(2))
+		Expect(deps).To(HaveLen(3))
 	})
 })
 
@@ -185,6 +198,16 @@ var _ = Describe("AddDependency", func() {
 			Expect(func() {
 				adderService.AddDependency(&NonsenseService{})
 			}).To(Panic())
+		})
+	})
+	When("the parent service does have a field for the dependency, but is named ambiguously", func() {
+		var strangeService *StrangeService
+		BeforeEach(func() {
+			strangeService = NewStrangeService()
+		})
+		It("sets the dependency on the ambiguously named field", func() {
+			adderService.AddDependency(strangeService)
+			Expect(strangeService.parent).To(Equal(adderService))
 		})
 	})
 })

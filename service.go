@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"reflect"
 )
 
@@ -66,14 +65,9 @@ func (s *Service) Dispatch(event EventI) {
 func (s *Service) Dependencies() []ServiceI {
 	services := make([]ServiceI, 0)
 	sVal := reflect.ValueOf(s.embeddedIn).Elem()
-	sType := sVal.Type()
 	fieldCount := sVal.NumField()
 	for i := 0; i < fieldCount; i++ {
-		fieldName := sType.Field(i).Name
 		fieldVal := sVal.Field(i)
-		fieldType := fieldVal.Type()
-		// if I called this method from a struct that embeds Service, how would I get the embedding struct?
-		fmt.Printf("\n%s (%s): %s\n", fieldName, fieldType, fieldVal)
 		if !fieldVal.CanInterface() {
 			continue
 		}
@@ -90,20 +84,42 @@ func (s *Service) Dependencies() []ServiceI {
 func (s *Service) AddDependency(dep ServiceI) {
 	// validate dep
 	depVal := reflect.ValueOf(dep).Elem()
+	depType := depVal.Type()
 	service := depVal.FieldByName("Service")
 	if !service.IsValid() {
 		panic("dependency does not embed Service")
+	}
+
+	// validate parent field exists
+	expFieldName := depType.Name()
+	parVal := reflect.ValueOf(s.embeddedIn).Elem()
+	var parValField reflect.Value
+	if parVal.FieldByName(expFieldName).IsValid() {
+		parValField = parVal.FieldByName(expFieldName)
+	} else {
+		ServiceIType := reflect.TypeOf((*ServiceI)(nil)).Elem()
+		depPtrType := reflect.ValueOf(dep).Type()
+		for i := 0; i < parVal.NumField(); i++ {
+			fieldVal := parVal.Field(i)
+			fieldType := fieldVal.Type()
+			if !fieldType.Implements(ServiceIType) {
+				continue
+			}
+			if depPtrType.AssignableTo(fieldType) {
+				parValField = fieldVal
+				break
+			}
+		}
+	}
+	if !parValField.IsValid() {
+		panic("could not determine the field on the parent for the dependency")
 	}
 
 	// set the parent on the dependency
 	service.Addr().Interface().(*Service).SetParent(s.embeddedIn)
 
 	// set the dependency on this service
-	fieldName := reflect.TypeOf(dep).Elem().Name()
-	parVal := reflect.ValueOf(s.embeddedIn).Elem()
-	parVal.FieldByName(fieldName).Set(reflect.ValueOf(dep))
-
-	// set the parent on the dependency
+	parValField.Set(reflect.ValueOf(dep))
 }
 
 func (s *Service) AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int) {
