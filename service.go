@@ -17,22 +17,22 @@ type ServiceI interface {
 	setParent(parent ServiceI)
 }
 
-type Service[CT ConfigI] struct {
+type Service struct {
 	parent                   ServiceI
 	embeddedIn               ServiceI
-	config                   CT
+	config                   ConfigI
 	eventHandlersCount       int
 	variantByEventId         map[int]EventVariant
 	eventHandlerIdxByEventId map[int]int
 	eventHandlersByVariant   map[EventVariant][]EventHandler
 }
 
-func (s *Service[CT]) Config() ConfigI {
+func (s *Service) Config() ConfigI {
 	return s.config
 }
 
-func NewService[CT ConfigI](service ServiceI, config CT) *Service[CT] {
-	return &Service[CT]{
+func NewService(service ServiceI, config ConfigI) *Service {
+	return &Service{
 		embeddedIn:               service,
 		parent:                   nil,
 		config:                   config,
@@ -43,7 +43,7 @@ func NewService[CT ConfigI](service ServiceI, config CT) *Service[CT] {
 	}
 }
 
-func (s *Service[CT]) Dispatch(event EventI) {
+func (s *Service) Dispatch(event EventI) {
 	willPropagate := true
 	if eventHandlers, ok := s.eventHandlersByVariant[event.Variant()]; ok {
 		for _, eventHandler := range eventHandlers {
@@ -66,7 +66,7 @@ func (s *Service[CT]) Dispatch(event EventI) {
 	}
 }
 
-func (s *Service[CT]) Dependencies() []ServiceI {
+func (s *Service) Dependencies() []ServiceI {
 	services := make([]ServiceI, 0)
 	sVal := reflect.ValueOf(s.embeddedIn).Elem()
 	sType := sVal.Type()
@@ -90,7 +90,7 @@ func (s *Service[CT]) Dependencies() []ServiceI {
 	return services
 }
 
-func (s *Service[CT]) AddDependency(dep ServiceI) {
+func (s *Service) AddDependency(dep ServiceI) {
 	// set the dependency on this service
 	fieldName := reflect.TypeOf(dep).Elem().Name()
 	parVal := reflect.ValueOf(s.embeddedIn).Elem()
@@ -100,7 +100,7 @@ func (s *Service[CT]) AddDependency(dep ServiceI) {
 	dep.setParent(s.embeddedIn)
 }
 
-func (s *Service[CT]) AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int) {
+func (s *Service) AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int) {
 	eventId = s.eventHandlersCount
 	s.eventHandlersCount++
 	if _, ok := s.eventHandlersByVariant[eventVariant]; !ok {
@@ -113,7 +113,7 @@ func (s *Service[CT]) AddEventListener(eventVariant EventVariant, fn EventHandle
 	return eventId
 }
 
-func (s *Service[CT]) RemoveEventListener(eventId int) {
+func (s *Service) RemoveEventListener(eventId int) {
 	variant, ok := s.variantByEventId[eventId]
 	if !ok {
 		return
@@ -127,13 +127,13 @@ func (s *Service[CT]) RemoveEventListener(eventId int) {
 	delete(s.eventHandlerIdxByEventId, eventId)
 }
 
-func (s *Service[CT]) propagateEvent(event EventI) {
+func (s *Service) propagateEvent(event EventI) {
 	if s.parent == nil {
 		return
 	}
 	s.parent.(ServiceI).Dispatch(event)
 }
 
-func (s *Service[CT]) setParent(parent ServiceI) {
+func (s *Service) setParent(parent ServiceI) {
 	s.parent = parent
 }

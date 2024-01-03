@@ -34,7 +34,7 @@ func (subServiceConfig *OtherSubServiceConfig) MergeWith(config ConfigI) ConfigI
 }
 
 type AdderService struct {
-	Service[*AdderConfig]
+	Service
 
 	__dependencies__ Marker
 	CutterService    *CutterService
@@ -53,7 +53,7 @@ func NewAdderService(config *AdderConfig) *AdderService {
 }
 
 type CutterService struct {
-	Service[*CutterConfig]
+	Service
 
 	__dependencies__ Marker
 
@@ -67,7 +67,7 @@ func NewCutterService(config *CutterConfig) *CutterService {
 }
 
 type OtherSubService struct {
-	Service[*OtherSubServiceConfig]
+	Service
 	subserviceFieldA string
 }
 
@@ -165,7 +165,7 @@ var _ = Describe("AddDependency", func() {
 	var adderService *AdderService
 	var cutterService *CutterService
 	type NonsenseService struct {
-		Service[*CutterConfig]
+		Service
 	}
 	BeforeEach(func() {
 		adderService = NewAdderService(&AdderConfig{})
