@@ -12,9 +12,6 @@ type ServiceI interface {
 	Dispatch(event EventI)
 	AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int)
 	RemoveEventListener(eventId int)
-
-	propagateEvent(event EventI)
-	setParent(parent ServiceI)
 }
 
 type Service struct {
@@ -62,7 +59,7 @@ func (s *Service) Dispatch(event EventI) {
 		}
 	}
 	if willPropagate {
-		s.propagateEvent(event)
+		s.PropagateEvent(event)
 	}
 }
 
@@ -91,13 +88,22 @@ func (s *Service) Dependencies() []ServiceI {
 }
 
 func (s *Service) AddDependency(dep ServiceI) {
+	// validate dep
+	depVal := reflect.ValueOf(dep).Elem()
+	service := depVal.FieldByName("Service")
+	if !service.IsValid() {
+		panic("dependency does not embed Service")
+	}
+
+	// set the parent on the dependency
+	service.Addr().Interface().(*Service).SetParent(s.embeddedIn)
+
 	// set the dependency on this service
 	fieldName := reflect.TypeOf(dep).Elem().Name()
 	parVal := reflect.ValueOf(s.embeddedIn).Elem()
 	parVal.FieldByName(fieldName).Set(reflect.ValueOf(dep))
 
 	// set the parent on the dependency
-	dep.setParent(s.embeddedIn)
 }
 
 func (s *Service) AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int) {
@@ -127,13 +133,13 @@ func (s *Service) RemoveEventListener(eventId int) {
 	delete(s.eventHandlerIdxByEventId, eventId)
 }
 
-func (s *Service) propagateEvent(event EventI) {
+func (s *Service) PropagateEvent(event EventI) {
 	if s.parent == nil {
 		return
 	}
 	s.parent.(ServiceI).Dispatch(event)
 }
 
-func (s *Service) setParent(parent ServiceI) {
+func (s *Service) SetParent(parent ServiceI) {
 	s.parent = parent
 }
