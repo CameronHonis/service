@@ -8,6 +8,8 @@ type ServiceI interface {
 	Config() ConfigI
 	Dependencies() []ServiceI
 	AddDependency(service ServiceI)
+	OnStart()
+	Start()
 	Dispatch(event EventI)
 	AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int)
 	RemoveEventListener(eventId int)
@@ -36,6 +38,17 @@ func NewService(service ServiceI, config ConfigI) *Service {
 		variantByEventId:         make(map[int]EventVariant),
 		eventHandlerIdxByEventId: make(map[int]int),
 		eventHandlersByVariant:   make(map[EventVariant][]EventHandler),
+	}
+}
+
+func (s *Service) OnStart() {}
+
+func (s *Service) Start() {
+	// NOTE: Do not override (only implement OnStart)
+	s.OnStart()
+	dependencies := s.Dependencies()
+	for _, dep := range dependencies {
+		dep.Start()
 	}
 }
 
