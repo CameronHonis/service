@@ -45,7 +45,7 @@ func (s *Service) OnStart() {}
 
 func (s *Service) Start() {
 	// NOTE: Do not override (only implement OnStart)
-	s.OnStart()
+	s.embeddedIn.OnStart()
 	dependencies := s.Dependencies()
 	for _, dep := range dependencies {
 		dep.Start()

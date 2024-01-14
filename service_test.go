@@ -41,8 +41,9 @@ type AdderService struct {
 	OtherSubService            *OtherSubService
 	StrangelyNamedServiceField *StrangeService
 
-	__state__ Marker
-	fieldA    int
+	__state__      Marker
+	fieldA         int
+	startCallCount int
 }
 
 func NewAdderService(config *AdderConfig) *AdderService {
@@ -53,18 +54,27 @@ func NewAdderService(config *AdderConfig) *AdderService {
 	return adderService
 }
 
+func (a *AdderService) OnStart() {
+	a.startCallCount++
+}
+
 type CutterService struct {
 	Service
 
 	__dependencies__ Marker
 
-	__state__ Marker
+	__state__      Marker
+	startCallCount int
 }
 
 func NewCutterService(config *CutterConfig) *CutterService {
 	cutterService := &CutterService{}
 	cutterService.Service = *NewService(cutterService, config)
 	return cutterService
+}
+
+func (c *CutterService) OnStart() {
+	c.startCallCount++
 }
 
 type OtherSubService struct {
@@ -103,7 +113,7 @@ func BuildServices() *AdderService {
 	return adderService
 }
 
-var _ = Describe("Service", func() {
+var _ = Describe("EventHandling", func() {
 	var adderService *AdderService
 	var arr []int
 	var pushNum func(EventI) bool
@@ -160,6 +170,21 @@ var _ = Describe("Service", func() {
 			adderService.CutterService.Dispatch(&event)
 			Expect(arr).To(HaveLen(0))
 		})
+	})
+})
+
+var _ = Describe("Start/OnStart", func() {
+	var adderService *AdderService
+	BeforeEach(func() {
+		adderService = BuildServices()
+	})
+	It("calls OnStart on the service started", func() {
+		adderService.Start()
+		Expect(adderService.startCallCount).To(Equal(1))
+	})
+	It("propagates OnStart calls to subservices", func() {
+		adderService.Start()
+		Expect(adderService.CutterService.startCallCount).To(Equal(1))
 	})
 })
 
