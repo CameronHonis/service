@@ -13,6 +13,7 @@ type ServiceI interface {
 	Dispatch(event EventI)
 	AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int)
 	RemoveEventListener(eventId int)
+	SetParent(parent ServiceI)
 }
 
 type Service struct {
