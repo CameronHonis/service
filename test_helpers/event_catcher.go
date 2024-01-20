@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/CameronHonis/marker"
 	. "github.com/CameronHonis/service"
+	"sync"
 )
 
 type EventCatcher struct {
@@ -14,6 +15,7 @@ type EventCatcher struct {
 	__State__    marker.Marker
 	evs          []EventI
 	evsByVariant map[EventVariant][]EventI
+	mu           sync.Mutex
 }
 
 func NewEventCatcher() *EventCatcher {
@@ -31,6 +33,8 @@ func NewEventCatcher() *EventCatcher {
 }
 
 func (ec *EventCatcher) CatchEvent(ev EventI) {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
 	ec.evs = append(ec.evs, ev)
 	if _, ok := ec.evsByVariant[ev.Variant()]; !ok {
 		ec.evsByVariant[ev.Variant()] = make([]EventI, 0)
@@ -39,6 +43,8 @@ func (ec *EventCatcher) CatchEvent(ev EventI) {
 }
 
 func (ec *EventCatcher) LastEvent() EventI {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
 	if len(ec.evs) == 0 {
 		panic("no events have been caught")
 	}
@@ -46,6 +52,8 @@ func (ec *EventCatcher) LastEvent() EventI {
 }
 
 func (ec *EventCatcher) LastEventByVariant(eVar EventVariant) EventI {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
 	evs, ok := ec.evsByVariant[eVar]
 	if !ok {
 		panic(fmt.Sprintf("no events with variant %s have been caught", eVar))
@@ -54,10 +62,14 @@ func (ec *EventCatcher) LastEventByVariant(eVar EventVariant) EventI {
 }
 
 func (ec *EventCatcher) EventsCount() int {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
 	return len(ec.evs)
 }
 
 func (ec *EventCatcher) EventsByVariantCount(eVar EventVariant) int {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
 	evs, ok := ec.evsByVariant[eVar]
 	if !ok {
 		return 0
@@ -66,6 +78,8 @@ func (ec *EventCatcher) EventsByVariantCount(eVar EventVariant) int {
 }
 
 func (ec *EventCatcher) NthEvent(idx int) EventI {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
 	if idx >= len(ec.evs) {
 		panic(fmt.Sprintf("idx %d exceeds bounds of caught events (size %d)", idx, len(ec.evs)))
 	}
@@ -73,6 +87,8 @@ func (ec *EventCatcher) NthEvent(idx int) EventI {
 }
 
 func (ec *EventCatcher) NthEventByVariant(eVar EventVariant, idx int) EventI {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
 	evs, ok := ec.evsByVariant[eVar]
 	if !ok {
 		panic(fmt.Sprintf("no %s events have been caught", eVar))
