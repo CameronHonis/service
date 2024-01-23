@@ -44,6 +44,7 @@ type AdderService struct {
 	__state__      Marker
 	fieldA         int
 	startCallCount int
+	buildCallCount int
 }
 
 func NewAdderService(config *AdderConfig) *AdderService {
@@ -58,6 +59,10 @@ func (a *AdderService) OnStart() {
 	a.startCallCount++
 }
 
+func (a *AdderService) OnBuild() {
+	a.buildCallCount++
+}
+
 type CutterService struct {
 	Service
 
@@ -65,6 +70,7 @@ type CutterService struct {
 
 	__state__      Marker
 	startCallCount int
+	buildCallCount int
 }
 
 func NewCutterService(config *CutterConfig) *CutterService {
@@ -75,6 +81,10 @@ func NewCutterService(config *CutterConfig) *CutterService {
 
 func (c *CutterService) OnStart() {
 	c.startCallCount++
+}
+
+func (c *CutterService) OnBuild() {
+	c.buildCallCount++
 }
 
 type OtherSubService struct {
@@ -100,7 +110,7 @@ func NewSubService(config *OtherSubServiceConfig) *OtherSubService {
 	return otherSubService
 }
 
-func BuildServices() *AdderService {
+func CreateServices() *AdderService {
 	adderService := NewAdderService(&AdderConfig{})
 	cutterService := NewCutterService(&CutterConfig{})
 	otherSubService := NewSubService(&OtherSubServiceConfig{})
@@ -119,7 +129,7 @@ var _ = Describe("EventHandling", func() {
 	var pushNum func(EventI) bool
 	var event Event
 	BeforeEach(func() {
-		adderService = BuildServices()
+		adderService = CreateServices()
 		arr = make([]int, 0)
 		pushNum = func(event EventI) bool {
 			arr = append(arr, event.Payload().(int))
@@ -173,10 +183,25 @@ var _ = Describe("EventHandling", func() {
 	})
 })
 
+var _ = Describe("Build/OnBuild", func() {
+	var adderService *AdderService
+	BeforeEach(func() {
+		adderService = CreateServices()
+	})
+	It("calls OnBuild on the service being built", func() {
+		adderService.Build()
+		Expect(adderService.buildCallCount).To(Equal(1))
+	})
+	It("propagates OnBuild calls to subservices", func() {
+		adderService.Build()
+		Expect(adderService.CutterService.buildCallCount).To(Equal(1))
+	})
+})
+
 var _ = Describe("Start/OnStart", func() {
 	var adderService *AdderService
 	BeforeEach(func() {
-		adderService = BuildServices()
+		adderService = CreateServices()
 	})
 	It("calls OnStart on the service started", func() {
 		adderService.Start()
@@ -191,7 +216,7 @@ var _ = Describe("Start/OnStart", func() {
 var _ = Describe("Dependencies", func() {
 	var adderService *AdderService
 	BeforeEach(func() {
-		adderService = BuildServices()
+		adderService = CreateServices()
 	})
 	It("retrieves subservices", func() {
 		deps := adderService.Dependencies()

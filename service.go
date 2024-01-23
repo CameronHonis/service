@@ -8,6 +8,8 @@ type ServiceI interface {
 	Config() ConfigI
 	Dependencies() []ServiceI
 	AddDependency(service ServiceI)
+	OnBuild()
+	Build()
 	OnStart()
 	Start()
 	Dispatch(event EventI)
@@ -39,6 +41,17 @@ func NewService(service ServiceI, config ConfigI) *Service {
 		variantByEventId:         make(map[int]EventVariant),
 		eventHandlerIdxByEventId: make(map[int]int),
 		eventHandlersByVariant:   make(map[EventVariant][]EventHandler),
+	}
+}
+
+func (s *Service) OnBuild() {}
+
+func (s *Service) Build() {
+	// NOTE: Do not override (only implement OnBuild)
+	s.embeddedIn.OnBuild()
+	dependencies := s.Dependencies()
+	for _, dep := range dependencies {
+		dep.Build()
 	}
 }
 
