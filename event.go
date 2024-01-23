@@ -29,4 +29,4 @@ func (e *Event) Payload() interface{} {
 	return e.payload
 }
 
-type EventHandler func(event EventI) (willPropagate bool)
+type EventHandler func(self ServiceI, event EventI) (willPropagate bool)

@@ -126,12 +126,12 @@ func CreateServices() *AdderService {
 var _ = Describe("EventHandling", func() {
 	var adderService *AdderService
 	var arr []int
-	var pushNum func(EventI) bool
+	var pushNum func(ServiceI, EventI) bool
 	var event Event
 	BeforeEach(func() {
 		adderService = CreateServices()
 		arr = make([]int, 0)
-		pushNum = func(event EventI) bool {
+		pushNum = func(_ ServiceI, event EventI) bool {
 			arr = append(arr, event.Payload().(int))
 			return true
 		}
@@ -171,7 +171,7 @@ var _ = Describe("EventHandling", func() {
 	})
 	When("the event handler returns false", func() {
 		BeforeEach(func() {
-			pushNum = func(event EventI) bool {
+			pushNum = func(_ ServiceI, event EventI) bool {
 				return false
 			}
 		})

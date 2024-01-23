@@ -24,7 +24,7 @@ func NewEventCatcher() *EventCatcher {
 		evsByVariant: make(map[EventVariant][]EventI),
 	}
 	ec.Service = *NewService(ec, nil)
-	catcher := func(ev EventI) bool {
+	catcher := func(_ ServiceI, ev EventI) bool {
 		ec.CatchEvent(ev)
 		return false
 	}
