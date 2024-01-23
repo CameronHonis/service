@@ -32,6 +32,13 @@ func NewEventCatcher() *EventCatcher {
 	return ec
 }
 
+func (ec *EventCatcher) FlushEvents() {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
+	ec.evs = make([]EventI, 0)
+	ec.evsByVariant = make(map[EventVariant][]EventI)
+}
+
 func (ec *EventCatcher) CatchEvent(ev EventI) {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
