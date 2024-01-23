@@ -73,7 +73,7 @@ func (s *Service) Dispatch(event EventI) {
 			if eventHandler == nil {
 				continue
 			}
-			willPropagate = willPropagate && eventHandler(s, event)
+			willPropagate = willPropagate && eventHandler(s.embeddedIn, event)
 		}
 	}
 	if eventHandlers, ok := s.eventHandlersByVariant[ALL_EVENTS]; ok {
@@ -81,7 +81,7 @@ func (s *Service) Dispatch(event EventI) {
 			if eventHandler == nil {
 				continue
 			}
-			willPropagate = willPropagate && eventHandler(s, event)
+			willPropagate = willPropagate && eventHandler(s.embeddedIn, event)
 		}
 	}
 	if willPropagate {

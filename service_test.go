@@ -125,14 +125,13 @@ func CreateServices() *AdderService {
 
 var _ = Describe("EventHandling", func() {
 	var adderService *AdderService
-	var arr []int
-	var pushNum func(ServiceI, EventI) bool
+	var incrFieldA func(ServiceI, EventI) bool
 	var event Event
 	BeforeEach(func() {
 		adderService = CreateServices()
-		arr = make([]int, 0)
-		pushNum = func(_ ServiceI, event EventI) bool {
-			arr = append(arr, event.Payload().(int))
+		incrFieldA = func(s ServiceI, event EventI) bool {
+			adderService := s.(*AdderService)
+			adderService.fieldA += event.Payload().(int)
 			return true
 		}
 		event = Event{
@@ -141,44 +140,49 @@ var _ = Describe("EventHandling", func() {
 		}
 	})
 	It("can add and trigger an event handler", func() {
-		adderService.AddEventListener(event.Variant(), pushNum)
+		adderService.AddEventListener(event.Variant(), incrFieldA)
 		adderService.Dispatch(&event)
-		Expect(arr).To(HaveLen(1))
-		Expect(arr[0]).To(Equal(12))
+		Expect(adderService.fieldA).To(Equal(13))
+		//Expect(arr).To(HaveLen(1))
+		//Expect(arr[0]).To(Equal(12))
 	})
 	It("can add and trigger a universal event handler", func() {
-		adderService.AddEventListener(ALL_EVENTS, pushNum)
+		adderService.AddEventListener(ALL_EVENTS, incrFieldA)
 		adderService.Dispatch(&event)
-		Expect(arr).To(HaveLen(1))
-		Expect(arr[0]).To(Equal(12))
+		Expect(adderService.fieldA).To(Equal(13))
+		//Expect(arr).To(HaveLen(1))
+		//Expect(arr[0]).To(Equal(12))
 	})
 	It("propagates the event to the parent", func() {
-		adderService.AddEventListener(event.Variant(), pushNum)
+		adderService.AddEventListener(event.Variant(), incrFieldA)
 		adderService.CutterService.Dispatch(&event)
-		Expect(arr).To(HaveLen(1))
-		Expect(arr[0]).To(Equal(12))
+		Expect(adderService.fieldA).To(Equal(13))
+		//Expect(arr).To(HaveLen(1))
+		//Expect(arr[0]).To(Equal(12))
 	})
 	When("an existing handler is removed", func() {
 		var handlerId int
 		BeforeEach(func() {
-			handlerId = adderService.AddEventListener(event.Variant(), pushNum)
+			handlerId = adderService.AddEventListener(event.Variant(), incrFieldA)
 		})
 		It("does not fire that event handler", func() {
 			adderService.RemoveEventListener(handlerId)
 			adderService.Dispatch(&event)
-			Expect(arr).To(HaveLen(0))
+			Expect(adderService.fieldA).To(Equal(1))
+			//Expect(arr).To(HaveLen(0))
 		})
 	})
 	When("the event handler returns false", func() {
 		BeforeEach(func() {
-			pushNum = func(_ ServiceI, event EventI) bool {
+			incrFieldA = func(_ ServiceI, event EventI) bool {
 				return false
 			}
 		})
 		It("does not propagate the event to the parent", func() {
-			adderService.AddEventListener(event.Variant(), pushNum)
+			adderService.AddEventListener(event.Variant(), incrFieldA)
 			adderService.CutterService.Dispatch(&event)
-			Expect(arr).To(HaveLen(0))
+			Expect(adderService.fieldA).To(Equal(1))
+			//Expect(arr).To(HaveLen(0))
 		})
 	})
 })
