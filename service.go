@@ -23,6 +23,8 @@ type Service struct {
 	embeddedIn               ServiceI
 	config                   ConfigI
 	eventHandlersCount       int
+	isBuilt                  bool
+	isStarted                bool
 	variantByEventId         map[int]EventVariant
 	eventHandlerIdxByEventId map[int]int
 	eventHandlersByVariant   map[EventVariant][]EventHandler
@@ -48,7 +50,10 @@ func (s *Service) OnBuild() {}
 
 func (s *Service) Build() {
 	// NOTE: Do not override (only implement OnBuild)
-	s.embeddedIn.OnBuild()
+	if !s.isBuilt {
+		s.embeddedIn.OnBuild()
+		s.isBuilt = true
+	}
 	dependencies := s.Dependencies()
 	for _, dep := range dependencies {
 		dep.Build()
@@ -59,7 +64,10 @@ func (s *Service) OnStart() {}
 
 func (s *Service) Start() {
 	// NOTE: Do not override (only implement OnStart)
-	s.embeddedIn.OnStart()
+	if !s.isStarted {
+		s.embeddedIn.OnStart()
+		s.isStarted = true
+	}
 	dependencies := s.Dependencies()
 	for _, dep := range dependencies {
 		dep.Start()

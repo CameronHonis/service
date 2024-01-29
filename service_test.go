@@ -200,6 +200,16 @@ var _ = Describe("Build/OnBuild", func() {
 		adderService.Build()
 		Expect(adderService.CutterService.buildCallCount).To(Equal(1))
 	})
+	When("the service was already built", func() {
+		BeforeEach(func() {
+			adderService = CreateServices()
+			adderService.Build()
+		})
+		It("does not call OnBuild", func() {
+			adderService.Build()
+			Expect(adderService.buildCallCount).To(Equal(1))
+		})
+	})
 })
 
 var _ = Describe("Start/OnStart", func() {
@@ -214,6 +224,16 @@ var _ = Describe("Start/OnStart", func() {
 	It("propagates OnStart calls to subservices", func() {
 		adderService.Start()
 		Expect(adderService.CutterService.startCallCount).To(Equal(1))
+	})
+	When("the service was already started", func() {
+		BeforeEach(func() {
+			adderService = CreateServices()
+			adderService.Start()
+		})
+		It("does not start the service again", func() {
+			adderService.Start()
+			Expect(adderService.startCallCount).To(Equal(1))
+		})
 	})
 })
 
