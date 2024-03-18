@@ -12,6 +12,8 @@ type ServiceI interface {
 	Build()
 	OnStart()
 	Start()
+	OnStop()
+	Stop()
 	Dispatch(event EventI)
 	AddEventListener(eventVariant EventVariant, fn EventHandler) (eventId int)
 	RemoveEventListener(eventId int)
@@ -71,6 +73,20 @@ func (s *Service) Start() {
 	dependencies := s.Dependencies()
 	for _, dep := range dependencies {
 		dep.Start()
+	}
+}
+
+func (s *Service) OnStop() {}
+
+func (s *Service) Stop() {
+	// NOTE: Do not override (only implement OnStop)
+	if s.isStarted {
+		s.embeddedIn.OnStop()
+		s.isStarted = false
+	}
+	deps := s.Dependencies()
+	for _, dep := range deps {
+		dep.Stop()
 	}
 }
 
